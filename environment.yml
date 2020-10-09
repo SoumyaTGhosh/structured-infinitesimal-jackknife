@@ -1,0 +1,9 @@
+name: approxcv
+channels:
+  - conda-forge
+dependencies:
+  - scikit-learn
+  - scipy
+  - autograd
+  - matplotlib
+
