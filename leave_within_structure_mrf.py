@@ -9,6 +9,7 @@ Pool from multiprocessing, is straightforward.
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm 
+import os 
 
 # our implementation 
 from src.lwcv import LWCV
@@ -38,7 +39,11 @@ for i in tqdm(range(N)):
     exactpredictives[i], _ = model.loo_predictive(missing_site=i, params=params_exact, display=False)
 
 # compare CV with ACV
-savefigpath = "sanity_checks/subset2_ver2_ACVvsCV.png"
+savedir = "sanity_checks/"
+if not os.path.exists(savedir):
+	os.mkdir(savedir)
+
+savefigpath = savedir + "subset2_ver2_ACVvsCV.png"
 plt.plot(-exactpredictives, -ACVpredictives, 'ro', ms=10, alpha=0.5)
 cap = max(max(-exactpredictives), max(-ACVpredictives))
 plt.plot([0, cap], [0, cap], 'k--', lw=3)
