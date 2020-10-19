@@ -18,6 +18,43 @@ import networkx as nx
 from src.models.abstract_model import AbstractModel
 
 # Helpers -----------------------------------------------------------------------
+def extract_folds(path):
+    """
+    Load data from path, make full data and the leave-one-out folds.
+    Also return the number of folds.  
+    """
+    file = np.load(path)
+    
+    data = {}
+    # full data
+    data['full'] = {}
+    y = file['counts']
+    W = np.asarray(file['w'], dtype=int)
+    data['full']['y'] = y
+    data['full']['W'] = W
+    
+    # leave-one-out folds
+    N = len(y)
+    for i in range(N):
+        data[i] = {}
+        newy = np.delete(y,i)
+        # indexer[j] = name of vertex j in the leave-out-fold
+        # in the original data
+        indexer = {}
+        for j in range(N-1):
+            if (j < i):
+                indexer[j] = j
+            else:
+                indexer[j] = j+1
+        newW = np.zeros((N-1,N-1))
+        for j in range(N-1):
+            for t in range(N-1):
+                if W[indexer[j],indexer[t]] == 1:
+                    newW[j,t] = 1
+        data[i]['y'] = newy
+        data[i]['W'] = newW
+    return data, N
+
 # factor class to help with partition computation. Adapted from
 # https://github.com/pgmpy/pgmpy/blob/dev/pgmpy/factors/discrete/DiscreteFactor.py
 class Factor:
@@ -346,24 +383,27 @@ class MinFill(BaseEliminationOrder):
 
 # Potts() -----------------------------------------------------------------------
 class Potts(AbstractModel):
-    def __init__(self, data, beta, heuristic, display=False):
+    def __init__(self, data, config_dict):
         """
         Set up MRF, do some processing to get rough estimate of class means,
         use a heuristic to find a good variable elimination order, report 
         the maximum clique size formed during elimination.
 
         Inputs:
-            data: dictionary with y and W keys
-            beta: scalar, connectivity of lattice MRF
-            heuristic: str, MinDegree or MinFill
-            display: boolean, whether to print information about field
+            data: dictionary, keys being counts y and adjacency matrix W
+            config_dict: dictionary with following keys
+                beta: scalar, connectivity of lattice MRF
+                heuristic: str, type of heuristic to determine elimination order, MinDegree or MinFill
+                display: boolean, whether to print information about MRF
         """
         self._y = data['y']
         self._N = len(self._y)
         self._W = np.asarray(data['W'], dtype=int)
-        self._beta = beta
+        self._beta = config_dict["beta"]
         self._lowmean = np.quantile(self._y, 0.25)
         self._highmean = np.quantile(self._y, 0.5)
+        display = config_dict["display"]
+
         if (display):
             print("There are %d sites" %len(self._y)) 
             print("Dimensions of adjacency matrix (%d, %d)" %(self._W.shape[0],self._W.shape[1])) 
@@ -373,10 +413,9 @@ class Potts(AbstractModel):
             print("Adjacency matrix")
             print(self._W)
             print("Initial guess of class means %.2f and %.2f" %(self._lowmean, self._highmean))
-        self.params_ones = None
-        self.dParams_dWeights = None
 
         # use heuristic to find a good elimination order
+        heuristic = config_dict["heuristic"]
         if (heuristic == "MinDegree"):
             degrees = np.sum(self._W,axis=1)
             nodes = range(self._N)
@@ -397,38 +436,31 @@ class Potts(AbstractModel):
         if (display):
             print("Variable elimination will use the following order")
             print(elimination_order)
-        
-        # check size of biggest clique encountered during elimination
-        factors = []
-        # unary potentials (in case some nodes are disconnected from other nodes)
-        for i in range(self._N):
-            node0 = "x%d" %(i)
-            factor = Factor([node0],cardinality=[2],log_values=[0,0])
-            factors.append(factor)
-            
-        # pairwise potentials
-        for i in range(self._N):
-            for j in range(self._N):
-                if self._W[i,j] == 1:
-                    node0 = "x%d" %(i)
-                    node1 = "x%d" %(j)
-                    factor = Factor([node0,node1],cardinality=[2,2],log_values=[self._beta,0,0,self._beta])
-                    factors.append(factor)
-                    
-        inference = VE(factors)
-        t0 = time.time()
-        self._logZ = inference.get_lognorm(elimination_order,display)
-        t1 = time.time()
-        print("Time of one normalization constant computation %.2f" %(t1-t0))
-        print("Finished initialization\n")
-        return
 
-    def get_sensitivity(self):
-        """
-        Return sensitivitiy around full-data solution.
-        """
-        assert self.dParams_dWeights is not None
-        return self.dParams_dWeights
+            # check size of biggest clique encountered during elimination
+            factors = []
+            # unary potentials (in case some nodes are disconnected from other nodes)
+            for i in range(self._N):
+                node0 = "x%d" %(i)
+                factor = Factor([node0],cardinality=[2],log_values=[0,0])
+                factors.append(factor)
+                
+            # pairwise potentials
+            for i in range(self._N):
+                for j in range(self._N):
+                    if self._W[i,j] == 1:
+                        node0 = "x%d" %(i)
+                        node1 = "x%d" %(j)
+                        factor = Factor([node0,node1],cardinality=[2,2],log_values=[self._beta,0,0,self._beta])
+                        factors.append(factor)
+                        
+            inference = VE(factors)
+            t0 = time.time()
+            self._logZ = inference.get_lognorm(elimination_order,display)
+            t1 = time.time()
+            print("Time of one normalization constant computation %.2f" %(t1-t0))
+            print("Finished initialization\n")
+        return
 
     def _get_elimination_order(self):
         """
@@ -440,7 +472,7 @@ class Potts(AbstractModel):
         list_of_neighbors = ["(site %d, y %d)" %(j,self._y[j]) for j in range(self._N) if self._W[i,j] == 1]
         return list_of_neighbors
 
-    def full_data_fit(self, r_init, get_visuals, compute_sensitivity, max_iter=100, var_converge=1e-8):
+    def fit(self, r_init, display, max_iter=100, var_converge=1e-8):
         """
         Estimate class means using full data and compute relevant sensitivities for 
         IJ approximation. Report class means and relevant runtimes.
@@ -448,23 +480,14 @@ class Potts(AbstractModel):
         t0 = time.time()
         if (r_init is None):
             r_init = np.array([self._lowmean, self._highmean])
-        self.params_ones = self.EM(r_init, get_visuals, max_iter, var_converge)
+        params_ones = self.EM(r_init, display, max_iter, var_converge)
         t1 = time.time()
-        times = {}
-        times['fit'] = t1-t0
-        print("Time to fit %.2f" %times['fit'])
-        if (compute_sensitivity):
-            t0 = time.time()
-            self.dParams_dWeights = self.compute_dParams_dWeights(np.ones(self._N),self.params_ones)
-            t1 = time.time()
-            times['sensitivity'] = t1-t0
-            print("Time to compute sensitivity %.2f" %times['sensitivity'])
-        print("Finished fitting\n")
-        return self.params_ones, times
+        print("Finished fitting in %.2f seconds" %(t1-t0))
+        return params_ones
 
     # -----------------------------------------------------------------------------------------
     # EM code
-    def EM(self, r_init, get_visuals, max_iter, var_converge):
+    def EM(self, r_init, display, max_iter, var_converge):
         """
         EM to maximize log(y; r0, r1) w.r.t. r0 and r1
         Input:
@@ -478,9 +501,7 @@ class Potts(AbstractModel):
         LLlog.append(prevLL)
         while True:
             iteration += 1
-            # E-step
             q = self.Estep(params)
-            # M-step
             r = self.Mstep(q)
             params = r
             LL = self.LL(params)
@@ -488,7 +509,7 @@ class Potts(AbstractModel):
             if (iteration > max_iter or abs((LL - prevLL)/prevLL) < var_converge):
                 break
             prevLL = LL
-        if (get_visuals):
+        if (display):
             # plot log LL of data as function of EM iteration
             plt.figure()
             plt.plot(range(len(LLlog)),LLlog, marker='o')
@@ -497,9 +518,9 @@ class Potts(AbstractModel):
             plt.tick_params(axis='x', labelsize=15)
             plt.tick_params(axis='y', labelsize=15)
             plt.show()
-        # report final class means
-        print("Inital means of EM r0 = %.2f, r1 = %.2f" %(r_init[0],r_init[1]))
-        print("\tFinal means of EM r0 = %.2f, r1 = %.2f" %(r[0],r[1]))
+            # report final class means
+            print("Inital means of EM r0 = %.2f, r1 = %.2f" %(r_init[0],r_init[1]))
+            print("\tFinal means of EM r0 = %.2f, r1 = %.2f" %(r[0],r[1]))
         return r
 
     def Estep(self, params, printfactors=False):
@@ -573,7 +594,6 @@ class Potts(AbstractModel):
             - p(y|x) is product of independent Poisson with two classes of means r0, r1 
             - p(x) is Potts model with uniform connection strength beta: 
             p(x) propto exp(beta sum_{i,j} W_{ij} {x_i = x_j})
-
         Inputs:
             params: list - r0, r1
         """
@@ -613,9 +633,9 @@ class Potts(AbstractModel):
 
     # -------------------------------------------------------------------------------------------
     # IJ code
-    def weightedLL(self, params, weights):
+    def weighted_loss(self, params, weights):
         """
-        Compute log p(y;weights,params) = log sum_x p(y,x;weights,params) 
+        Compute -log p(y;weights,params) = -log sum_x p(y,x;weights,params) 
         where 
             - p(y|x; weights) is product of independent Poisson with two classes of means r0, r1 
             over present observations i.e. weights[i] = 1.
@@ -657,32 +677,9 @@ class Potts(AbstractModel):
 
         joint_inference = VE(numer_factors)
         log_numerator = joint_inference.get_lognorm(elimination_order,show_progress=False)
-        return log_numerator-log_denominator
-
-    # compute hessian of weighted log-likelihood w.r.t parameters
-    def compute_hessian(self, weights, params):
-        eval_hess = autograd.hessian(self.weightedLL, argnum=0)
-        hess = eval_hess(params, weights)
-        return hess
-    
-    # sensitivity around weights
-    def compute_dParams_dWeights(self, weights, params):
-        hess = self.compute_hessian(weights, params)
-        eval_d2l_dParams_dWeights = \
-                autograd.jacobian(autograd.jacobian(self.weightedLL, argnum=0),
-                                  argnum=1)
-        d2l_dParams_dWeights = eval_d2l_dParams_dWeights(params, weights)
-        sensitivity = -np.linalg.solve(hess, d2l_dParams_dWeights)
-        return sensitivity
-    
-    def retrain_with_weights(self, weights):
-        assert self.dParams_dWeights is not None
-        assert self.params_ones is not None
-        t0 = time.time()
-        IJ = (self.params_ones +
-                  self.dParams_dWeights.dot(weights-1))
-        t1 = time.time()
-        return IJ, t1-t0
+        weighted_LL = log_numerator-log_denominator
+        final_weighted_loss = -weighted_LL
+        return final_weighted_loss
 
     # -------------------------------------------------------------------------------------------------
     # predictive code
