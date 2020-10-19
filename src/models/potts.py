@@ -13,6 +13,7 @@ from itertools import product
 from pgmpy.extern import tabulate
 import random
 import networkx as nx
+from collections import defaultdict
 
 # our implementation 
 from src.models.abstract_model import AbstractModel
@@ -372,6 +373,89 @@ class VE():
         phi = self.query(variables=[last], elimination_order=elimination_order[:-1], joint=True, show_progress=show_progress)
         logZ = logsumexp(phi.log_values)
         return logZ
+
+# elimination order module. Adapted from 
+# http://pgmpy.org/_modules/pgmpy/inference/EliminationOrder.html#BaseEliminationOrder
+class BaseEliminationOrder:
+    """
+    Base class for finding elimination orders.
+    """
+
+    def __init__(self, G):
+        """
+        Init method for the base class of Elimination Orders.
+        Parameters
+        ----------
+        G: NetworkX graph 
+        """
+        self.G = G.copy()
+        return
+
+    def cost(self, node):
+        """
+        The cost function to compute the cost of elimination of each node.
+        This method is just a dummy and returns 0 for all the nodes. Actual cost functions
+        are implemented in the classes inheriting BaseEliminationOrder.
+        Parameters
+        ----------
+        node: string, any hashable python object.
+            The node whose cost is to be computed.
+        """
+        return 0
+
+    def get_elimination_order(self, nodes=None, show_progress=True):
+        """
+        Returns the optimal elimination order based on the cost function.
+        The node having the least cost is removed first.
+        Parameters
+        ----------
+        nodes: list, tuple, set (array-like)
+            The variables which are to be eliminated.
+        """
+        nodes = self.G.nodes()
+
+        ordering = []
+        if show_progress:
+            pbar = tqdm(total=len(nodes))
+            pbar.set_description("Finding Elimination Order: ")
+
+        while len(self.G.nodes()) > 0:
+            # find minimum score node
+            scores = {node: self.cost(node) for node in self.G.nodes()}
+            min_score_node = min(scores, key=scores.get)
+            # add found node to elimination order
+            ordering.append(min_score_node)
+            # add edges to node's neighbors
+            edge_list = self.fill_in_edges(min_score_node,show_progress)
+            self.G.add_edges_from(edge_list)
+            # remove node from graph
+            self.G.remove_node(min_score_node)
+            if show_progress:
+                pbar.update(1)
+        return ordering
+
+    def fill_in_edges(self, node, show_progress=False):
+        """
+        Return edges needed to be added to the graph if a node is removed.
+        Parameters
+        ----------
+        node: string (any hashable python object)
+            Node to be removed from the graph.
+        show_progress: boolean, print clique size formed after removal of 
+            vertex
+        """
+        neighbors = list(self.G.neighbors(node))
+        degree = len(neighbors)
+        edge_list = []
+        if (show_progress):
+            print("After removing %s, a clique of size %d forms" %(node, degree))
+        if (degree > 1):
+            for i in range(degree):
+                for j in range(degree-1):
+                    if not self.G.has_edge(neighbors[i],neighbors[j]):
+                        edge_list.append((neighbors[i],neighbors[j]))
+        
+        return edge_list
     
 class MinFill(BaseEliminationOrder):
     def cost(self, node):
@@ -437,30 +521,32 @@ class Potts(AbstractModel):
             print("Variable elimination will use the following order")
             print(elimination_order)
 
-            # check size of biggest clique encountered during elimination
-            factors = []
-            # unary potentials (in case some nodes are disconnected from other nodes)
-            for i in range(self._N):
-                node0 = "x%d" %(i)
-                factor = Factor([node0],cardinality=[2],log_values=[0,0])
-                factors.append(factor)
-                
-            # pairwise potentials
-            for i in range(self._N):
-                for j in range(self._N):
-                    if self._W[i,j] == 1:
-                        node0 = "x%d" %(i)
-                        node1 = "x%d" %(j)
-                        factor = Factor([node0,node1],cardinality=[2,2],log_values=[self._beta,0,0,self._beta])
-                        factors.append(factor)
-                        
-            inference = VE(factors)
-            t0 = time.time()
-            self._logZ = inference.get_lognorm(elimination_order,display)
-            t1 = time.time()
+        # check size of biggest clique encountered during elimination
+        factors = []
+        # unary potentials (in case some nodes are disconnected from other nodes)
+        for i in range(self._N):
+            node0 = "x%d" %(i)
+            factor = Factor([node0],cardinality=[2],log_values=[0,0])
+            factors.append(factor)
+            
+        # pairwise potentials
+        for i in range(self._N):
+            for j in range(self._N):
+                if self._W[i,j] == 1:
+                    node0 = "x%d" %(i)
+                    node1 = "x%d" %(j)
+                    factor = Factor([node0,node1],cardinality=[2,2],log_values=[self._beta,0,0,self._beta])
+                    factors.append(factor)
+
+        inference = VE(factors)
+        t0 = time.time()
+        self._logZ = inference.get_lognorm(elimination_order,display)
+        t1 = time.time()
+
+        if (display):
             print("Time of one normalization constant computation %.2f" %(t1-t0))
             print("Finished initialization\n")
-        return
+        return 
 
     def _get_elimination_order(self):
         """

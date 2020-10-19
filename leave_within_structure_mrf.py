@@ -13,6 +13,7 @@ from tqdm import tqdm
 # our implementation 
 from src.lwcv import LWCV
 from src.models.potts import Potts
+from src.utils import extract_folds
 
 # load data 
 filepath = "./data/subset2-ver2.npz"
@@ -29,16 +30,23 @@ ACVpredictives = np.zeros(N)
 exactpredictives = np.zeros(N)
 # leave-one-out fits
 for i in tqdm(range(N)):
-	lwcv = LWCV(model, theta_one, N, i)
-	params_acv = lwcv.compute_params_acv()
-    ACVpredictives[i] = model.loo_predictive(missing_site=i, params=params_acv, display=False)
+    lwcv = LWCV(model, theta_ones, N, i)
+    params_acv = lwcv.compute_params_acv()
+    """
+    print(type(i))
+    print(type(params_acv))
+    print(ACVpredictives[i])
+    """
+    ACVpredictives[i], _ = model.loo_predictive(missing_site=i, params=params_acv, display=False)
 
     loo_model = Potts(data[i], config_dict)
     params_exact = loo_model.fit(r_init=theta_ones,display=False)
-    exactpredictives[i] = model.loo_predictive(missing_site=i, params=params_exact, display=False)
+    exactpredictives[i], _ = model.loo_predictive(missing_site=i, params=params_exact, display=False)
 
 # compare CV with ACV
-plt.plot(exactpredictives, ACVpredictives, 'ro', ms=10, alpha=0.5)
+savefigpath = "sanity_checks/subset2_ver2_ACVvsCV.png"
+plt.plot(-exactpredictives, -ACVpredictives, 'ro', ms=10, alpha=0.5)
 cap = max(max(-exactpredictives), max(-ACVpredictives))
 plt.plot([0, cap], [0, cap], 'k--', lw=3)
 plt.show()
+plt.savefig(savefigpath)
