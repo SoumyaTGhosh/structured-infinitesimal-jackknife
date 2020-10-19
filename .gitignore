@@ -130,3 +130,10 @@ dmypy.json
 
 # Sanity checks
 sanity_checks/
+
+# raw Philly data
+philly_data/raw_data
+# Intermediate R data frames used for Philadelphia data
+philly_data/data
+# npz file
+philly_data/*.npz
