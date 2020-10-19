@@ -41,3 +41,41 @@ def genSyntheticDataset(K, T, N, D, sigma0=None, seed=1234, varainces_of_mean=1.
             X[n, t] = np.random.multivariate_normal(mean=mus[zs[n,t]], cov=sigma0)
 
     return X, zs, A, pi0, mus
+
+# -----------------------------------------------------------------
+def extract_folds(path):
+    """
+    Load data from path, make full data and the leave-one-out folds.
+    Also return the number of folds.  
+    """
+    file = np.load(path)
+    
+    data = {}
+    # full data
+    data['full'] = {}
+    y = file['counts']
+    W = np.asarray(file['w'], dtype=int)
+    data['full']['y'] = y
+    data['full']['W'] = W
+    
+    # leave-one-out folds
+    N = len(y)
+    for i in range(N):
+        data[i] = {}
+        newy = np.delete(y,i)
+        # indexer[j] = name of vertex j in the leave-out-fold
+        # in the original data
+        indexer = {}
+        for j in range(N-1):
+            if (j < i):
+                indexer[j] = j
+            else:
+                indexer[j] = j+1
+        newW = np.zeros((N-1,N-1))
+        for j in range(N-1):
+            for t in range(N-1):
+                if W[indexer[j],indexer[t]] == 1:
+                    newW[j,t] = 1
+        data[i]['y'] = newy
+        data[i]['W'] = newW
+    return data, N
