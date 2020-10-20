@@ -8,6 +8,7 @@ from autograd.scipy.special import logsumexp
 from sklearn.cluster import KMeans
 from src.models.abstract_model import AbstractModel
 
+
 class HMM(AbstractModel):
     def __init__(self, X, config_dict=None):
         self.N, self.T, self.D = X.shape
@@ -25,17 +26,6 @@ class HMM(AbstractModel):
         self.beta1 = None # store the first timestep beliefs from the beta recursion.
         self.forward_trellis = {}  # stores \alpha
         self.backward_trellis = {}  # stores \beta
-
-    def log_obs_lik(self, x, phi, Sigma):
-        """
-        :param x: T*D*1
-        :param phi: 1*D*K
-        :param Sigma: D*D*K --- precision matrices per state
-        :return: ll
-        """
-        centered_x = x - phi
-        ll = -0.5 * np.einsum('tdk, tdk, ddk -> tk', centered_x, centered_x, Sigma )
-        return ll
 
     def initialize_params(self, seed=1234):
         np.random.seed(seed)
@@ -67,7 +57,7 @@ class HMM(AbstractModel):
         Z = np.sum(unnorm_A[:, :-1], axis=1)
         unnorm_A /= Z[:, np.newaxis]
         norm_A = unnorm_A / unnorm_A.sum(axis=1, keepdims=True)
-        param_dict['A'] = norm_A 
+        param_dict['A'] = norm_A
 
         unnorm_pi = np.exp(np.append(params[K**2-K:K**2-1], 0.0))
         Z = np.sum(unnorm_pi[:-1])
@@ -75,21 +65,6 @@ class HMM(AbstractModel):
         param_dict['pi0'] = unnorm_pi / unnorm_pi.sum()
         param_dict['phi'] = params[K**2-K+K-1:].reshape(self.D, K)
         return param_dict
-
-    def pack_params(self, params_dict):
-        param_list = [(np.log(params_dict['A'][:, :-1]) -
-                       np.log(params_dict['A'][:, -1])[:, np.newaxis]).ravel(),
-                       np.log(params_dict['pi0'][:-1]) - np.log(params_dict['pi0'][-1]),
-                       params_dict['phi'].ravel()]
-        return np.concatenate(param_list)
-
-    def get_prior_contrib(self, param_dict):
-        logp = 0.0
-        # Prior
-        logp += -0.5 * (np.linalg.norm(param_dict['phi'], axis=0) ** 2).sum()
-        logp += (1.1 - 1) * np.log(param_dict['A']).sum()
-        logp += (1.1 - 1) * np.log(param_dict['pi0']).sum()
-        return logp
 
     def weighted_alpha_recursion(self, xseq, pi, phi, Sigma, A, wseq, store_belief=False):
         """
@@ -168,6 +143,8 @@ class HMM(AbstractModel):
         :param params: packed parameters
         :return:
         """
+        # empty forward and backward trellis
+        self.clear_trellis()
         param_dict = self.unpack_params(params)
         # populate forward and backward trellis
         lpx = self.weighted_alpha_recursion(self.X[0], param_dict['pi0'],
@@ -193,8 +170,7 @@ class HMM(AbstractModel):
             test_ll.append(logsumexp(ll[t] + lpz_given_x.ravel()))
             tsteps.append(t)
         # empty forward and backward trellis
-        self.forward_trellis = {}
-        self.backward_trellis = {}
+        self.clear_trellis()
         return -np.array(test_ll)
 
     def fit(self, weights, init_params=None, num_random_restarts=1, verbose=True, maxiter=None):
@@ -218,6 +194,39 @@ class HMM(AbstractModel):
         if verbose:
             print('grad norm =', np.linalg.norm(res.jac))
         return res.x
+
+    def clear_trellis(self):
+        self.forward_trellis = {}
+        self.backward_trellis = {}
+
+    @staticmethod
+    def log_obs_lik(x, phi, Sigma):
+        """
+        :param x: T*D*1
+        :param phi: 1*D*K
+        :param Sigma: D*D*K --- precision matrices per state
+        :return: ll
+        """
+        centered_x = x - phi
+        ll = -0.5 * np.einsum('tdk, tdk, ddk -> tk', centered_x, centered_x, Sigma )
+        return ll
+
+    @staticmethod
+    def pack_params(params_dict):
+        param_list = [(np.log(params_dict['A'][:, :-1]) -
+                       np.log(params_dict['A'][:, -1])[:, np.newaxis]).ravel(),
+                       np.log(params_dict['pi0'][:-1]) - np.log(params_dict['pi0'][-1]),
+                       params_dict['phi'].ravel()]
+        return np.concatenate(param_list)
+
+    @staticmethod
+    def get_prior_contrib(param_dict):
+        logp = 0.0
+        # Prior
+        logp += -0.5 * (np.linalg.norm(param_dict['phi'], axis=0) ** 2).sum()
+        logp += (1.1 - 1) * np.log(param_dict['A']).sum()
+        logp += (1.1 - 1) * np.log(param_dict['pi0']).sum()
+        return logp
 
 
 
