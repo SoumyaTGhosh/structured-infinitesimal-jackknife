@@ -1,9 +1,12 @@
 name: approxcv
 channels:
   - conda-forge
+  - ankurankan 
 dependencies:
-  - scikit-learn
-  - scipy
-  - autograd
-  - matplotlib
+  - conda-forge::scikit-learn
+  - conda-forge::scipy
+  - conda-forge::autograd
+  - conda-forge::matplotlib
+  - conda-forge::tqdm 
+  - ankurankan::pgmpy
 
