@@ -11,5 +11,5 @@ conda env create -f environment.yml
 To perform LWCV on a AR(0) hidden Markov model trained on synthetic data, run,
 
 ```run
-python lwcv.py
+python ./leave_within_structure_out_cv.py
 ```
