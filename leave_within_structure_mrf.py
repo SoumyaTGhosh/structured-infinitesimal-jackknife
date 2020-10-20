@@ -8,8 +8,8 @@ Pool from multiprocessing, is straightforward.
 # standard libraries 
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm 
-import os 
+from tqdm import tqdm
+import os
 
 # our implementation 
 from src.lwcv import LWCV
@@ -35,17 +35,19 @@ for i in tqdm(range(N)):
     params_acv = lwcv.compute_params_acv()
     ACVpredictives[i], _ = model.loo_predictive(missing_site=i, params=params_acv, display=False)
     loo_model = Potts(data[i], config_dict)
-    params_exact = loo_model.fit(r_init=theta_ones,display=False)
+    params_exact = loo_model.fit(r_init=theta_ones, display=False)
     exactpredictives[i], _ = model.loo_predictive(missing_site=i, params=params_exact, display=False)
 
 # compare CV with ACV
 savedir = "sanity_checks/"
 if not os.path.exists(savedir):
-	os.mkdir(savedir)
+    os.mkdir(savedir)
 
-savefigpath = savedir + "subset2_ver2_ACVvsCV.png"
+savefigpath = savedir + "mrf_ACVvsCV.png"
 plt.plot(-exactpredictives, -ACVpredictives, 'ro', ms=10, alpha=0.5)
 cap = max(max(-exactpredictives), max(-ACVpredictives))
 plt.plot([0, cap], [0, cap], 'k--', lw=3)
+plt.xlabel("Exact CV", fontsize=20)
+plt.ylabel("Approximate CV", fontsize=20)
+plt.savefig(savefigpath, dpi=200)
 plt.show()
-plt.savefig(savefigpath)

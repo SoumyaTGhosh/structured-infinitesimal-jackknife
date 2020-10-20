@@ -18,44 +18,8 @@ from collections import defaultdict
 # our implementation 
 from src.models.abstract_model import AbstractModel
 
-# Helpers -----------------------------------------------------------------------
-def extract_folds(path):
-    """
-    Load data from path, make full data and the leave-one-out folds.
-    Also return the number of folds.  
-    """
-    file = np.load(path)
-    
-    data = {}
-    # full data
-    data['full'] = {}
-    y = file['counts']
-    W = np.asarray(file['w'], dtype=int)
-    data['full']['y'] = y
-    data['full']['W'] = W
-    
-    # leave-one-out folds
-    N = len(y)
-    for i in range(N):
-        data[i] = {}
-        newy = np.delete(y,i)
-        # indexer[j] = name of vertex j in the leave-out-fold
-        # in the original data
-        indexer = {}
-        for j in range(N-1):
-            if (j < i):
-                indexer[j] = j
-            else:
-                indexer[j] = j+1
-        newW = np.zeros((N-1,N-1))
-        for j in range(N-1):
-            for t in range(N-1):
-                if W[indexer[j],indexer[t]] == 1:
-                    newW[j,t] = 1
-        data[i]['y'] = newy
-        data[i]['W'] = newW
-    return data, N
 
+# Helpers -----------------------------------------------------------------------
 # factor class to help with partition computation. Adapted from
 # https://github.com/pgmpy/pgmpy/blob/dev/pgmpy/factors/discrete/DiscreteFactor.py
 class Factor:
@@ -72,14 +36,14 @@ class Factor:
         self.variables = list(variables)
         self.cardinality = np.array(cardinality, dtype=int)
         self.log_values = log_values.reshape(self.cardinality)
-        return 
-    
+        return
+
     def scope(self):
         return self.variables
-    
+
     def get_cardinality(self, variables):
         return {var: self.cardinality[self.variables.index(var)] for var in variables}
-    
+
     def copy(self):
         """
         Returns a copy of the factor.
@@ -91,7 +55,7 @@ class Factor:
             self.cardinality,
             self.log_values
         )
-    
+
     def product(self, phi1):
         """
         Return product factor between self and phi1. This routine
@@ -135,9 +99,9 @@ class Factor:
             phi1.log_values = phi1.log_values.swapaxes(axis, exchange_index)
 
         phi.log_values = phi.log_values + phi1.log_values
-        
+
         return phi
-    
+
     def many_products(self, factors):
         """
         Take a product between self and many factors, returning a new factor.
@@ -148,10 +112,10 @@ class Factor:
             return self.copy()
         else:
             newphi = self.product(factors[0])
-            for i in range(1,len(factors)):
+            for i in range(1, len(factors)):
                 newphi = newphi.product(factors[i])
             return newphi
-    
+
     def marginalize(self, variables, inplace=False):
         """
         Modifies the factor with marginalized values.
@@ -187,7 +151,7 @@ class Factor:
 
         if not inplace:
             return phi
-    
+
     def __str__(self):
         return self._str(phi_or_p="phi", tablefmt="grid")
 
@@ -225,10 +189,11 @@ class Factor:
         return tabulate(
             factor_table, headers=string_header, tablefmt=tablefmt, floatfmt=".4f"
         )
-    
+
+
 # variable elimination module. Adapted from
 # http://pgmpy.org/_modules/pgmpy/inference/ExactInference.html#VariableElimination
-class VE():
+class VE:
     def __init__(self, factors):
         """
         Inputs:
@@ -242,7 +207,7 @@ class VE():
             for var in factor.variables:
                 self.factors[var].append(factor)
         return
-    
+
     def _get_working_factors(self):
         """
         Make copy of working factors.
@@ -253,11 +218,11 @@ class VE():
         return working_factors
 
     def _variable_elimination(
-        self,
-        variables,
-        elimination_order,
-        joint,
-        show_progress,
+            self,
+            variables,
+            elimination_order,
+            joint,
+            show_progress,
     ):
         """
         Implementation of a generalized variable elimination.
@@ -270,9 +235,9 @@ class VE():
         elimination_order: list (array-like)
             variables in order of being eliminated 
         """
-        
-        operation = 'marginalize' 
-        
+
+        operation = 'marginalize'
+
         # Step 1: Deal with the input arguments.
         if isinstance(variables, str):
             raise TypeError("variables must be a list of strings")
@@ -287,7 +252,7 @@ class VE():
             pbar = tqdm(elimination_order)
         else:
             pbar = elimination_order
-        
+
         max_factor_size = 0
         for var in pbar:
             if show_progress:
@@ -312,9 +277,9 @@ class VE():
             for variable in phi.variables:
                 working_factors[variable].append(phi)
             eliminated_variables.add(var)
-            
+
         if show_progress:
-            print("Maximum clique formed %d" %max_factor_size)
+            print("Maximum clique formed %d" % max_factor_size)
 
         # Step 4: Prepare variables to be returned.
         final_distribution = []
@@ -336,11 +301,11 @@ class VE():
             return query_var_factor
 
     def query(
-        self,
-        variables,
-        elimination_order,
-        joint,
-        show_progress,
+            self,
+            variables,
+            elimination_order,
+            joint,
+            show_progress,
     ):
         """
         Parameters
@@ -361,7 +326,7 @@ class VE():
             joint=joint,
             show_progress=show_progress,
         )
-    
+
     def get_lognorm(self, elimination_order, show_progress):
         """
         Compute log normalizer for the joint distribution.
@@ -370,11 +335,13 @@ class VE():
             show_progress: boolean, whether to print progress of VE
         """
         last = elimination_order[-1]
-        phi = self.query(variables=[last], elimination_order=elimination_order[:-1], joint=True, show_progress=show_progress)
+        phi = self.query(variables=[last], elimination_order=elimination_order[:-1], joint=True,
+                         show_progress=show_progress)
         logZ = logsumexp(phi.log_values)
         return logZ
 
-# elimination order module. Adapted from 
+
+# elimination order module. Adapted from
 # http://pgmpy.org/_modules/pgmpy/inference/EliminationOrder.html#BaseEliminationOrder
 class BaseEliminationOrder:
     """
@@ -426,7 +393,7 @@ class BaseEliminationOrder:
             # add found node to elimination order
             ordering.append(min_score_node)
             # add edges to node's neighbors
-            edge_list = self.fill_in_edges(min_score_node,show_progress)
+            edge_list = self.fill_in_edges(min_score_node, show_progress)
             self.G.add_edges_from(edge_list)
             # remove node from graph
             self.G.remove_node(min_score_node)
@@ -448,15 +415,16 @@ class BaseEliminationOrder:
         degree = len(neighbors)
         edge_list = []
         if (show_progress):
-            print("After removing %s, a clique of size %d forms" %(node, degree))
+            print("After removing %s, a clique of size %d forms" % (node, degree))
         if (degree > 1):
             for i in range(degree):
-                for j in range(degree-1):
-                    if not self.G.has_edge(neighbors[i],neighbors[j]):
-                        edge_list.append((neighbors[i],neighbors[j]))
-        
+                for j in range(degree - 1):
+                    if not self.G.has_edge(neighbors[i], neighbors[j]):
+                        edge_list.append((neighbors[i], neighbors[j]))
+
         return edge_list
-    
+
+
 class MinFill(BaseEliminationOrder):
     def cost(self, node):
         """
@@ -464,6 +432,7 @@ class MinFill(BaseEliminationOrder):
         (fill in edges) to the graph due to its elimination
         """
         return len(self.fill_in_edges(node))
+
 
 # Potts() -----------------------------------------------------------------------
 class Potts(AbstractModel):
@@ -488,36 +457,36 @@ class Potts(AbstractModel):
         self._highmean = np.quantile(self._y, 0.5)
         display = config_dict["display"]
 
-        if (display):
-            print("There are %d sites" %len(self._y)) 
-            print("Dimensions of adjacency matrix (%d, %d)" %(self._W.shape[0],self._W.shape[1])) 
-            list_of_counts = ["(site %d, y %d)" %(i,self._y[i]) for i in range(self._N)]
+        if display:
+            print("There are %d sites" % len(self._y))
+            print("Dimensions of adjacency matrix (%d, %d)" % (self._W.shape[0], self._W.shape[1]))
+            list_of_counts = ["(site %d, y %d)" % (i, self._y[i]) for i in range(self._N)]
             print("Counts")
             print(list_of_counts)
             print("Adjacency matrix")
             print(self._W)
-            print("Initial guess of class means %.2f and %.2f" %(self._lowmean, self._highmean))
+            print("Initial guess of class means %.2f and %.2f" % (self._lowmean, self._highmean))
 
         # use heuristic to find a good elimination order
         heuristic = config_dict["heuristic"]
-        if (heuristic == "MinDegree"):
-            degrees = np.sum(self._W,axis=1)
+        if heuristic == "MinDegree":
+            degrees = np.sum(self._W, axis=1)
             nodes = range(self._N)
             temp = list(zip(nodes, degrees))
             temp = sorted(temp, key=lambda tup: tup[1])
-            elimination_order = ["x%d" %d[0] for d in temp]
+            elimination_order = ["x%d" % d[0] for d in temp]
         else:
             G = nx.from_numpy_matrix(self._W)
-            mapping = {i: "x%d" %i for i in range(len(G.nodes()))}
-            G = nx.relabel_nodes(G,mapping)
+            mapping = {i: "x%d" % i for i in range(len(G.nodes()))}
+            G = nx.relabel_nodes(G, mapping)
             nodes = G.nodes()
             if (heuristic == "MinFill"):
                 elimination_order = MinFill(G).get_elimination_order(nodes, display)
             elif (heuristic == "MinNeighbors"):
                 elimination_order = MinNeighbors(G).get_elimination_order(nodes, display)
         self._elimination_order = elimination_order
-        
-        if (display):
+
+        if display:
             print("Variable elimination will use the following order")
             print(elimination_order)
 
@@ -525,37 +494,37 @@ class Potts(AbstractModel):
         factors = []
         # unary potentials (in case some nodes are disconnected from other nodes)
         for i in range(self._N):
-            node0 = "x%d" %(i)
-            factor = Factor([node0],cardinality=[2],log_values=[0,0])
+            node0 = "x%d" % (i)
+            factor = Factor([node0], cardinality=[2], log_values=[0, 0])
             factors.append(factor)
-            
+
         # pairwise potentials
         for i in range(self._N):
             for j in range(self._N):
-                if self._W[i,j] == 1:
-                    node0 = "x%d" %(i)
-                    node1 = "x%d" %(j)
-                    factor = Factor([node0,node1],cardinality=[2,2],log_values=[self._beta,0,0,self._beta])
+                if self._W[i, j] == 1:
+                    node0 = "x%d" % (i)
+                    node1 = "x%d" % (j)
+                    factor = Factor([node0, node1], cardinality=[2, 2], log_values=[self._beta, 0, 0, self._beta])
                     factors.append(factor)
 
         inference = VE(factors)
         t0 = time.time()
-        self._logZ = inference.get_lognorm(elimination_order,display)
+        self._logZ = inference.get_lognorm(elimination_order, display)
         t1 = time.time()
 
-        if (display):
-            print("Time of one normalization constant computation %.2f" %(t1-t0))
+        if display:
+            print("Time of one normalization constant computation %.2f" % (t1 - t0))
             print("Finished initialization\n")
-        return 
+        return
 
     def _get_elimination_order(self):
         """
         Return copy of elimination order.
         """
         return self._elimination_order.copy()
-    
+
     def get_neighbors(self, i):
-        list_of_neighbors = ["(site %d, y %d)" %(j,self._y[j]) for j in range(self._N) if self._W[i,j] == 1]
+        list_of_neighbors = ["(site %d, y %d)" % (j, self._y[j]) for j in range(self._N) if self._W[i, j] == 1]
         return list_of_neighbors
 
     def fit(self, r_init, display, max_iter=100, var_converge=1e-8):
@@ -563,12 +532,12 @@ class Potts(AbstractModel):
         Estimate class means using full data and compute relevant sensitivities for 
         IJ approximation. Report class means and relevant runtimes.
         """
-        t0 = time.time()
-        if (r_init is None):
+        # t0 = time.time()
+        if r_init is None:
             r_init = np.array([self._lowmean, self._highmean])
         params_ones = self.EM(r_init, display, max_iter, var_converge)
-        t1 = time.time()
-        print("Finished fitting in %.2f seconds" %(t1-t0))
+        # t1 = time.time()
+        # print("Finished fitting in %.2f seconds" %(t1-t0))
         return params_ones
 
     # -----------------------------------------------------------------------------------------
@@ -592,21 +561,21 @@ class Potts(AbstractModel):
             params = r
             LL = self.LL(params)
             LLlog.append(LL)
-            if (iteration > max_iter or abs((LL - prevLL)/prevLL) < var_converge):
+            if (iteration > max_iter or abs((LL - prevLL) / prevLL) < var_converge):
                 break
             prevLL = LL
-        if (display):
+        if display:
             # plot log LL of data as function of EM iteration
             plt.figure()
-            plt.plot(range(len(LLlog)),LLlog, marker='o')
-            plt.xlabel("Iteration",fontsize=15)
-            plt.ylabel("Log-likelihood",fontsize=15)
+            plt.plot(range(len(LLlog)), LLlog, marker='o')
+            plt.xlabel("Iteration", fontsize=15)
+            plt.ylabel("Log-likelihood", fontsize=15)
             plt.tick_params(axis='x', labelsize=15)
             plt.tick_params(axis='y', labelsize=15)
             plt.show()
             # report final class means
-            print("Inital means of EM r0 = %.2f, r1 = %.2f" %(r_init[0],r_init[1]))
-            print("\tFinal means of EM r0 = %.2f, r1 = %.2f" %(r[0],r[1]))
+            print("Inital means of EM r0 = %.2f, r1 = %.2f" % (r_init[0], r_init[1]))
+            print("\tFinal means of EM r0 = %.2f, r1 = %.2f" % (r[0], r[1]))
         return r
 
     def Estep(self, params, printfactors=False):
@@ -616,42 +585,43 @@ class Potts(AbstractModel):
         """
         r0 = params[0]
         r1 = params[1]
-                
+
         # create list of factors representing p(x|y;params)
         factors = []
-        
+
         # unary potentials in the prior (in case some nodes are disconnected from other nodes)
         for i in range(self._N):
-            node0 = "x%d" %(i)
-            factor = Factor([node0],cardinality=[2],log_values=[0,0])
+            node0 = "x%d" % (i)
+            factor = Factor([node0], cardinality=[2], log_values=[0, 0])
             factors.append(factor)
-        
+
         ## pairwise potentials in the prior 
         for i in range(self._N):
             for j in range(self._N):
-                if self._W[i,j] == 1:
-                    node0 = "x%d" %(i)
-                    node1 = "x%d" %(j)
-                    prior_factor = Factor([node0,node1],cardinality=[2,2],log_values=[self._beta,0,0,self._beta])
+                if self._W[i, j] == 1:
+                    node0 = "x%d" % (i)
+                    node1 = "x%d" % (j)
+                    prior_factor = Factor([node0, node1], cardinality=[2, 2], log_values=[self._beta, 0, 0, self._beta])
                     factors.append(prior_factor)
-                        
+
         ## add observations to make the joint model
         for i in range(self._N):
-            node = "x%d" %(i)
-            low_class = -r0 + self._y[i]*np.log(r0)-gammaln(self._y[i]+1)
-            high_class = -r1 + self._y[i]*np.log(r1)-gammaln(self._y[i]+1)
-            observation_factor = Factor([node],cardinality=[2],log_values=[low_class, high_class])
+            node = "x%d" % (i)
+            low_class = -r0 + self._y[i] * np.log(r0) - gammaln(self._y[i] + 1)
+            high_class = -r1 + self._y[i] * np.log(r1) - gammaln(self._y[i] + 1)
+            observation_factor = Factor([node], cardinality=[2], log_values=[low_class, high_class])
             factors.append(observation_factor)
 
         inference = VE(factors)
-        
+
         # marginals p(x_i|y;params)
-        q = np.zeros(self._N) # q(x_i^0)
+        q = np.zeros(self._N)  # q(x_i^0)
         for i in range(self._N):
-            node = "x%d" %i
+            node = "x%d" % i
             elimination_order = self._get_elimination_order()
             elimination_order.remove(node)
-            marginal_factor = inference.query(variables=[node],elimination_order=elimination_order,joint=True,show_progress=False)
+            marginal_factor = inference.query(variables=[node], elimination_order=elimination_order, joint=True,
+                                              show_progress=False)
             log_norm = logsumexp(marginal_factor.log_values)
             # properly normalize the marginal factors
             marginal_factor.log_values = marginal_factor.log_values - log_norm
@@ -666,9 +636,9 @@ class Potts(AbstractModel):
         Inputs: 
             low: list, marginal distributions q(x_i = 0|y;params) 
         """
-        high = 1-low
-        r0 = np.sum(low*self._y)/(np.sum(low)+1e-100)
-        r1 = np.sum(high*self._y)/(np.sum(high)+1e-100)
+        high = 1 - low
+        r0 = np.sum(low * self._y) / (np.sum(low) + 1e-100)
+        r1 = np.sum(high * self._y) / (np.sum(high) + 1e-100)
         r = np.array([r0, r1])
         return r
 
@@ -685,37 +655,37 @@ class Potts(AbstractModel):
         """
         r0 = params[0]
         r1 = params[1]
-                
+
         # create list of factors representing p(x|y;params)
         factors = []
-        
-         # unary potentials in the prior (in case some nodes are disconnected from other nodes)
+
+        # unary potentials in the prior (in case some nodes are disconnected from other nodes)
         for i in range(self._N):
-            node0 = "x%d" %(i)
-            factor = Factor([node0],cardinality=[2],log_values=[0,0])
+            node0 = "x%d" % (i)
+            factor = Factor([node0], cardinality=[2], log_values=[0, 0])
             factors.append(factor)
-        
+
         ## iterate through all edges to create the prior model
         for i in range(self._N):
             for j in range(self._N):
-                if self._W[i,j] == 1:
-                    node0 = "x%d" %(i)
-                    node1 = "x%d" %(j)
-                    prior_factor = Factor([node0,node1],cardinality=[2,2],log_values=[self._beta,0,0,self._beta])
+                if self._W[i, j] == 1:
+                    node0 = "x%d" % (i)
+                    node1 = "x%d" % (j)
+                    prior_factor = Factor([node0, node1], cardinality=[2, 2], log_values=[self._beta, 0, 0, self._beta])
                     factors.append(prior_factor)
-                        
+
         ## add observations to make the joint model
         for i in range(self._N):
-            node = "x%d" %(i)
-            low_class = -r0 + self._y[i]*np.log(r0)-gammaln(self._y[i]+1)
-            high_class = -r1 + self._y[i]*np.log(r1)-gammaln(self._y[i]+1)
-            observation_factor = Factor([node],cardinality=[2],log_values=[low_class, high_class])
+            node = "x%d" % (i)
+            low_class = -r0 + self._y[i] * np.log(r0) - gammaln(self._y[i] + 1)
+            high_class = -r1 + self._y[i] * np.log(r1) - gammaln(self._y[i] + 1)
+            observation_factor = Factor([node], cardinality=[2], log_values=[low_class, high_class])
             factors.append(observation_factor)
 
         inference = VE(factors)
         elimination_order = self._get_elimination_order()
-        log_numerator = inference.get_lognorm(elimination_order,show_progress=False)
-        return log_numerator-self._logZ
+        log_numerator = inference.get_lognorm(elimination_order, show_progress=False)
+        return log_numerator - self._logZ
 
     # -------------------------------------------------------------------------------------------
     # IJ code
@@ -740,30 +710,30 @@ class Potts(AbstractModel):
         # iterate through all edges to create the prior model
         for i in range(self._N):
             for j in range(self._N):
-                if self._W[i,j] == 1:
-                    node0 = "x%d" %(i)
-                    node1 = "x%d" %(j)
-                    inclusion_weight = weights[i]*weights[j]
-                    log_values = inclusion_weight*np.array([self._beta,0,0,self._beta])
-                    prior_factor = Factor([node0,node1],cardinality=[2,2],log_values=log_values)
+                if self._W[i, j] == 1:
+                    node0 = "x%d" % (i)
+                    node1 = "x%d" % (j)
+                    inclusion_weight = weights[i] * weights[j]
+                    log_values = inclusion_weight * np.array([self._beta, 0, 0, self._beta])
+                    prior_factor = Factor([node0, node1], cardinality=[2, 2], log_values=log_values)
                     denom_factors.append(prior_factor)
 
         prior_inference = VE(denom_factors)
-        log_denominator = prior_inference.get_lognorm(elimination_order,show_progress=False)
-                        
+        log_denominator = prior_inference.get_lognorm(elimination_order, show_progress=False)
+
         # add the observations to make the joint model
         numer_factors = denom_factors.copy()
         for i in range(self._N):
-            node = "x%d" %(i)
-            low_class = -r0 + self._y[i]*np.log(r0)-gammaln(self._y[i]+1)
-            high_class = -r1 + self._y[i]*np.log(r1)-gammaln(self._y[i]+1)
-            log_values = weights[i]*np.array([low_class, high_class])
-            observation_factor = Factor([node],cardinality=[2],log_values=log_values)
+            node = "x%d" % (i)
+            low_class = -r0 + self._y[i] * np.log(r0) - gammaln(self._y[i] + 1)
+            high_class = -r1 + self._y[i] * np.log(r1) - gammaln(self._y[i] + 1)
+            log_values = weights[i] * np.array([low_class, high_class])
+            observation_factor = Factor([node], cardinality=[2], log_values=log_values)
             numer_factors.append(observation_factor)
 
         joint_inference = VE(numer_factors)
-        log_numerator = joint_inference.get_lognorm(elimination_order,show_progress=False)
-        weighted_LL = log_numerator-log_denominator
+        log_numerator = joint_inference.get_lognorm(elimination_order, show_progress=False)
+        weighted_LL = log_numerator - log_denominator
         final_weighted_loss = -weighted_LL
         return final_weighted_loss
 
@@ -783,51 +753,52 @@ class Potts(AbstractModel):
         # compute log p(x|y_{-i};params)
         r0 = params[0]
         r1 = params[1]
-        
+
         numer_factors = []
-        
-         # unary potentials in the prior (in case some nodes are disconnected from other nodes)
+
+        # unary potentials in the prior (in case some nodes are disconnected from other nodes)
         for i in range(self._N):
-            node0 = "x%d" %(i)
-            factor = Factor([node0],cardinality=[2],log_values=[0,0])
+            node0 = "x%d" % (i)
+            factor = Factor([node0], cardinality=[2], log_values=[0, 0])
             numer_factors.append(factor)
-        
+
         ## iterate through all edges to create the prior model
         for i in range(self._N):
             for j in range(self._N):
-                if self._W[i,j] == 1:
-                    node0 = "x%d" %(i)
-                    node1 = "x%d" %(j)
-                    prior_factor = Factor([node0,node1],cardinality=[2,2],log_values=[self._beta,0,0,self._beta])
+                if self._W[i, j] == 1:
+                    node0 = "x%d" % (i)
+                    node1 = "x%d" % (j)
+                    prior_factor = Factor([node0, node1], cardinality=[2, 2], log_values=[self._beta, 0, 0, self._beta])
                     numer_factors.append(prior_factor)
-                        
+
         # add non-missing observations to make the joint model
         for i in range(self._N):
-            if (i != missing_site):
-                node = "x%d" %(i)
-                low_class = -r0 + self._y[i]*np.log(r0)-gammaln(self._y[i]+1)
-                high_class = -r1 + self._y[i]*np.log(r1)-gammaln(self._y[i]+1)
-                observation_factor = Factor([node],cardinality=[2],log_values=[low_class, high_class])
+            if i != missing_site:
+                node = "x%d" % (i)
+                low_class = -r0 + self._y[i] * np.log(r0) - gammaln(self._y[i] + 1)
+                high_class = -r1 + self._y[i] * np.log(r1) - gammaln(self._y[i] + 1)
+                observation_factor = Factor([node], cardinality=[2], log_values=[low_class, high_class])
                 numer_factors.append(observation_factor)
-            
+
         inference = VE(numer_factors)
         # compute log p(x_i|y_{-i};params) by marginalizing x_{-i} in log p(x|y_{-i};params)
-        node = "x%d" %missing_site
+        node = "x%d" % missing_site
         elimination_order = self._get_elimination_order()
         elimination_order.remove(node)
-        marginal_factor = inference.query(variables=[node],elimination_order=elimination_order,joint=True,show_progress=False)
+        marginal_factor = inference.query(variables=[node], elimination_order=elimination_order, joint=True,
+                                          show_progress=False)
         log_norm = logsumexp(marginal_factor.log_values)
-        marginal_factor.log_values = marginal_factor.log_values-log_norm
-        
-        if (display):
-            print("Site %d missing. p(x_i|y_{-i}) is" %missing_site)
+        marginal_factor.log_values = marginal_factor.log_values - log_norm
+
+        if display:
+            print("Site %d missing. p(x_i|y_{-i}) is" % missing_site)
             print(marginal_factor)
-            
+
         # compute log p(y_i|y_{-i};params)
-        low_class = -r0 + self._y[missing_site]*np.log(r0)-gammaln(self._y[missing_site]+1)
-        high_class = -r1 + self._y[missing_site]*np.log(r1)-gammaln(self._y[missing_site]+1)
+        low_class = -r0 + self._y[missing_site] * np.log(r0) - gammaln(self._y[missing_site] + 1)
+        high_class = -r1 + self._y[missing_site] * np.log(r1) - gammaln(self._y[missing_site] + 1)
         loglowterm = marginal_factor.log_values[0] + low_class
         loghighterm = marginal_factor.log_values[1] + high_class
         ans = logsumexp([loglowterm, loghighterm])
         t1 = time.time()
-        return ans, t1-t0
+        return ans, t1 - t0

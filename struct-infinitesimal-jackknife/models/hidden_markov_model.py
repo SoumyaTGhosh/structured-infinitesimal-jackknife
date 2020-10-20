@@ -173,7 +173,7 @@ class HMM(AbstractModel):
         self.clear_trellis()
         return -np.array(test_ll)
 
-    def fit(self, weights, init_params=None, num_random_restarts=1, verbose=True, maxiter=None):
+    def fit(self, weights, init_params=None, num_random_restarts=1, verbose=False, maxiter=None):
         if maxiter:
             options_dict = {'disp': verbose, 'gtol': 1e-10, 'maxiter': maxiter}
         else:
