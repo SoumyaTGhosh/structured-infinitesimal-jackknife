@@ -128,7 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Sanity checks
+# Sanity checks/figures
+figures/
 sanity_checks/
 
 # raw Philly data
@@ -137,3 +138,5 @@ philly_data/raw_data
 philly_data/data
 # npz file
 philly_data/*.npz
+
+

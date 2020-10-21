@@ -1,9 +1,9 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from src.lwcv import LWCV
-from src.models.hidden_markov_model import HMM
-from src.utils import genSyntheticDataset, get_indices_in_held_out_fold
+from structij.lwcv import LWCV
+from structij.models.hidden_markov_model import HMM
+from structij.utils import genSyntheticDataset, get_indices_in_held_out_fold
 
 
 # specify problem
@@ -46,6 +46,6 @@ plt.ylabel("Approximate CV", fontsize=20)
 savedir = "sanity_checks/"
 if not os.path.exists(savedir):
     os.mkdir(savedir)
-savefigpath = savedir + "hmm_ACVvsCV.png"
+savefigpath = savedir + "HMM_ACVvsCV.png"
 plt.savefig(savefigpath, dpi=200)
 plt.show()
