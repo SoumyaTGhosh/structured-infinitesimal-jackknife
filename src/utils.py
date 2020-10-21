@@ -42,7 +42,13 @@ def genSyntheticDataset(K, T, N, D, sigma0=None, seed=1234, varainces_of_mean=1.
 
     return X, zs, A, pi0, mus
 
-# -----------------------------------------------------------------
+# Potts.py helpers -----------------------------------------------------------------
+def save_adjacency_mat(path):
+    file = np.load(path)
+    W = np.asarray(file['w'], dtype=int)
+    np.savetxt("toy_adj_mat.csv", W, fmt="%d",delimiter=",")
+    return 
+
 def extract_folds(path):
     """
     Load data from path, make full data and the leave-one-out folds.
@@ -79,3 +85,70 @@ def extract_folds(path):
         data[i]['y'] = newy
         data[i]['W'] = newW
     return data, N
+
+def genMRFdatafolds(adj_path, lam_hi, lam_lo, seed):
+    """
+    Inputs:
+        adj_path: str, typicall "toy_adj_mat.csv"
+        lam_hi: scalar, mean of lower class
+        lam_lo: scalar, mean of higher class
+        seed: scalar, random seed for replicability
+    Outputs:
+    """
+    data = {}
+    
+    # load adjacency matrix 
+    W = np.genfromtxt(adj_path, delimiter=',')
+    N = W.shape[0]
+    
+    # generate random class assignments 
+    np.random.seed(seed)
+    z = np.random.binomial(1, 0.5, size=N)
+    
+    # generate counts
+    y = np.empty(N, dtype = np.int)
+    for i in range(N):
+        if (z[i] == 1):
+            tmp_lam = lam_hi
+        if(z[i] == 0): 
+            tmp_lam = lam_lo
+        y[i] = np.random.poisson(lam = tmp_lam)
+    
+    # make folds
+    data['full'] = {}
+    data['full']['y'] = y
+    data['full']['W'] = W
+    
+    # leave-one-out folds
+    for i in range(N):
+        data[i] = {}
+        newy = np.delete(y,i)
+        # indexer[j] = name of vertex j in the leave-out-fold
+        # in the original data
+        indexer = {}
+        for j in range(N-1):
+            if (j < i):
+                indexer[j] = j
+            else:
+                indexer[j] = j+1
+        newW = np.zeros((N-1,N-1))
+        for j in range(N-1):
+            for t in range(N-1):
+                if W[indexer[j],indexer[t]] == 1:
+                    newW[j,t] = 1
+        data[i]['y'] = newy
+        data[i]['W'] = newW
+    return data, N
+
+def genSyntheticCounts(z, lam_hi, lam_lo):
+    N = z.size
+    counts = np.empty(N, dtype = np.int)
+    for i in range(N):
+        if (z[i] == 1):
+            tmp_lam = lam_hi
+        if(z[i] == 0): 
+            tmp_lam = lam_lo
+        counts[i] = np.random.poisson(lam = tmp_lam)
+    data = {}
+    data['counts'] = counts
+    return data
