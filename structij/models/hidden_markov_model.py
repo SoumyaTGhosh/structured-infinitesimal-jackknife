@@ -6,7 +6,7 @@ import scipy.optimize
 from autograd import grad
 from autograd.scipy.special import logsumexp
 from sklearn.cluster import KMeans
-from src.models.abstract_model import AbstractModel
+from structij.models.abstract_model import AbstractModel
 
 
 class HMM(AbstractModel):

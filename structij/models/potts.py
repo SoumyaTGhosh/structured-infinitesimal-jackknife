@@ -16,7 +16,7 @@ import networkx as nx
 from collections import defaultdict
 
 # our implementation 
-from src.models.abstract_model import AbstractModel
+from structij.models.abstract_model import AbstractModel
 
 
 # Helpers -----------------------------------------------------------------------
