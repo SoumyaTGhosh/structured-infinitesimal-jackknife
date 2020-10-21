@@ -43,7 +43,7 @@ plt.plot([0, 5], [0, 5], 'k--', lw=3)
 plt.xlabel("Exact CV", fontsize=20)
 plt.ylabel("Approximate CV", fontsize=20)
 
-savedir = "sanity_checks/"
+savedir = "figures/"
 if not os.path.exists(savedir):
     os.mkdir(savedir)
 savefigpath = savedir + "HMM_ACVvsCV.png"
