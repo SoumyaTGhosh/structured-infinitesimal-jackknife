@@ -14,11 +14,14 @@ import os
 # our implementation 
 from src.lwcv import LWCV
 from src.models.potts import Potts
-from src.utils import extract_folds
+from src.utils import genMRFdatafolds
 
-# load data 
-filepath = "./data/subset2-ver2.npz"
-data, N = extract_folds(filepath)
+# make synthetic data 
+adj_path = "toy_adj_mat.csv"
+lam_lo = 28
+lam_hi = 83
+seed = 0
+data, N = genMRFdatafolds(adj_path, lam_hi, lam_lo, seed)
 beta = 1.0
 
 # fit with all data
@@ -39,11 +42,11 @@ for i in tqdm(range(N)):
     exactpredictives[i], _ = model.loo_predictive(missing_site=i, params=params_exact, display=False)
 
 # compare CV with ACV
-savedir = "sanity_checks/"
+savedir = "figures/"
 if not os.path.exists(savedir):
 	os.mkdir(savedir)
 
-savefigpath = savedir + "subset2_ver2_ACVvsCV.png"
+savefigpath = savedir + "MRF_ACVvsCV.png"
 plt.plot(-exactpredictives, -ACVpredictives, 'ro', ms=10, alpha=0.5)
 cap = max(max(-exactpredictives), max(-ACVpredictives))
 plt.plot([0, cap], [0, cap], 'k--', lw=3)
