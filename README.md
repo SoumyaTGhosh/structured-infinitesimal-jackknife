@@ -1,5 +1,5 @@
 # Approximate Cross-Validation for Structured Models
-This repository contains code for approximate cross-validation for structred models based on the infinitesimal jackknife as developed in [1]
+This repository contains code for approximate cross-validation for structred models based on the infinitesimal jackknife as developed in [1].
 
 
 ### Requirements
